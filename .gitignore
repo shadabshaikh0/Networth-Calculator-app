@@ -16,3 +16,8 @@ local.properties
 
 # IDE
 /.idea/
+
+# Signing (never commit)
+/keystore.properties
+*.jks
+*.keystore
