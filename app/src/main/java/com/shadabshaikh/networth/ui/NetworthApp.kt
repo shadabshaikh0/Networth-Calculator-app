@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Login
@@ -80,13 +81,21 @@ fun NetworthApp(vm: NetworthViewModel) {
         bottomBar = { BottomNav(state, vm) },
         floatingActionButton = { if (state.view != View.HISTORY) AddFab(vm) },
     ) { inner ->
-        Box(Modifier.fillMaxSize().padding(inner), contentAlignment = Alignment.Center) {
+        Box(Modifier.fillMaxSize().padding(inner), contentAlignment = Alignment.TopCenter) {
             if (!state.loaded) {
-                CircularProgressIndicator(color = nwColors.gold)
-            } else when (state.view) {
-                View.DASHBOARD -> DashboardScreen(state, derived, vm)
-                View.HISTORY -> HistoryScreen(derived, vm)
-                View.CATEGORY -> CategoryDrilldownScreen(derived, vm)
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(color = nwColors.gold)
+                }
+            } else {
+                // Constrain content width on tablets/large screens so cards
+                // don't stretch edge-to-edge; on phones this is a no-op.
+                Box(Modifier.fillMaxSize().widthIn(max = 600.dp)) {
+                    when (state.view) {
+                        View.DASHBOARD -> DashboardScreen(state, derived, vm)
+                        View.HISTORY -> HistoryScreen(derived, vm)
+                        View.CATEGORY -> CategoryDrilldownScreen(derived, vm)
+                    }
+                }
             }
         }
     }
