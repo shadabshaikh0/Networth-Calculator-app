@@ -148,13 +148,16 @@ key, so you must register its SHA-1 or sign-in fails with `DEVELOPER_ERROR`.
 
 ---
 
-## 9. The two graphics you still need
-Binary images can't be generated from code — make these once:
-- **App icon (512×512 PNG):** reuse the in-app icon look — a gold `#D5B475`
-  square with a dark `₹`. In Android Studio: right-click `res` → **New → Image
-  Asset → Launcher Icons**, or export the current `ic_launcher` at 512².
-- **Feature graphic (1024×500 PNG):** a simple gold banner with the `₹` mark and
-  "Net Worth Calculator" (Canva/Figma, ~5 min).
+## 9. Store graphics — done ✅
+Both are generated and committed in [`../store-assets`](../store-assets):
+- **App icon:** `store-assets/play-icon-512.png` (512×512, gold + dark `₹`)
+- **Feature graphic:** `store-assets/play-feature-1024x500.png`
+
+Upload these in the Main store listing. To tweak/regenerate them:
+```bash
+python3 -m venv venv && venv/bin/pip install Pillow
+venv/bin/python store-assets/generate.py
+```
 
 ---
 
