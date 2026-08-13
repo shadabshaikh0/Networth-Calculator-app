@@ -1,4 +1,4 @@
-package com.example.networthcalculator.ui.theme
+package com.shadabshaikh.networth.ui.theme
 
 import androidx.compose.material3.Typography
 import androidx.compose.ui.text.TextStyle

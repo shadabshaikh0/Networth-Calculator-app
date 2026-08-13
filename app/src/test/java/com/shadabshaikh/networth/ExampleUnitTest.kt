@@ -1,4 +1,4 @@
-package com.example.networthcalculator
+package com.shadabshaikh.networth
 
 import org.junit.Test
 
