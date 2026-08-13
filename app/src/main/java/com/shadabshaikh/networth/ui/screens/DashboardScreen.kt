@@ -38,9 +38,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.shadabshaikh.networth.domain.CatRow
@@ -163,13 +165,17 @@ private fun ChartsCarousel(d: Derived) {
         if (d.hasTrend) add { m -> TrendCard(d, m) }
     }
     val pagerState = rememberPagerState(pageCount = { pages.size })
+    // Grow the card height with the user's font scale so the allocation legend
+    // (the tallest content) never clips on large-font or small screens.
+    val fontScale = LocalConfiguration.current.fontScale.coerceIn(1f, 1.6f)
+    val pageHeight = (300 * fontScale).dp
     Column {
         HorizontalPager(
             state = pagerState,
             pageSpacing = 12.dp,
             contentPadding = PaddingValues(end = 34.dp), // peek of the next card
         ) { page ->
-            pages[page](Modifier.fillMaxWidth().height(300.dp))
+            pages[page](Modifier.fillMaxWidth().height(pageHeight))
         }
         Spacer(Modifier.height(10.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
@@ -401,19 +407,27 @@ private fun AllocationCard(d: Derived, modifier: Modifier = Modifier) {
                 DonutChart(
                     segs = d.donutSegs,
                     trackColor = nwColors.grid,
-                    strokeWidth = 20.dp,
-                    modifier = Modifier.size(130.dp),
+                    strokeWidth = 18.dp,
+                    modifier = Modifier.size(108.dp),
                 )
-                Spacer(Modifier.size(20.dp))
+                Spacer(Modifier.size(16.dp))
                 Column(Modifier.weight(1f)) {
                     d.donutSegs.forEach { seg ->
                         Row(
-                            Modifier.padding(vertical = 3.dp),
+                            Modifier.padding(vertical = 2.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Box(Modifier.size(9.dp).clip(CircleShape).background(hexToColor(seg.colorHex)))
                             Spacer(Modifier.size(8.dp))
-                            Text(seg.label, color = nwColors.legend, fontSize = 12.5.sp, modifier = Modifier.weight(1f))
+                            Text(
+                                seg.label,
+                                color = nwColors.legend,
+                                fontSize = 12.5.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f),
+                            )
+                            Spacer(Modifier.size(6.dp))
                             Text(seg.pctLabel, color = nwColors.text3, fontSize = 12.5.sp, fontWeight = FontWeight.Medium)
                         }
                     }
