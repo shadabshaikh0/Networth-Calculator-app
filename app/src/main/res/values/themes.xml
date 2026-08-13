@@ -1,5 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
-    <style name="Theme.NetworthCalculator" parent="android:Theme.Material.Light.NoActionBar" />
+    <style name="Theme.NetworthCalculator" parent="android:Theme.Material.Light.NoActionBar">
+        <!-- Android 12+ splash: gold background matching the launcher icon,
+             so it doesn't flash white before the (dark) app UI loads. -->
+        <item name="android:windowSplashScreenBackground">#D5B475</item>
+    </style>
 </resources>
