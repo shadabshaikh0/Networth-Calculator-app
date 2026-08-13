@@ -62,4 +62,4 @@ updated" date.
 
 ## Contact
 
-Questions? Contact the developer at **shadab@wintwealth.com**.
+Questions? Contact the developer at **sshadabshaikh7703@gmail.com**.
