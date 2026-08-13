@@ -1,17 +1,29 @@
 package com.shadabshaikh.networth.ui.screens
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -25,6 +37,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
@@ -33,14 +47,22 @@ import com.shadabshaikh.networth.domain.CatRow
 import com.shadabshaikh.networth.domain.Derived
 import com.shadabshaikh.networth.model.Kind
 import com.shadabshaikh.networth.ui.NetworthViewModel
+import com.shadabshaikh.networth.ui.UiState
+import com.shadabshaikh.networth.ui.components.AnimatedBar
+import com.shadabshaikh.networth.ui.components.CategoryIcon
 import com.shadabshaikh.networth.ui.components.DonutChart
 import com.shadabshaikh.networth.ui.components.TrendLineChart
+import com.shadabshaikh.networth.ui.theme.NwType
 import com.shadabshaikh.networth.ui.theme.hexToColor
 import com.shadabshaikh.networth.ui.theme.nwColors
 import com.shadabshaikh.networth.ui.theme.tintFor
 
 @Composable
-fun DashboardScreen(d: Derived, vm: NetworthViewModel) {
+fun DashboardScreen(state: UiState, d: Derived, vm: NetworthViewModel) {
+    if (d.isEmpty) {
+        EmptyState(vm)
+        return
+    }
     Column(
         Modifier
             .fillMaxWidth()
@@ -48,43 +70,119 @@ fun DashboardScreen(d: Derived, vm: NetworthViewModel) {
             .padding(horizontal = 20.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
+        if (state.untouched) SampleBanner(vm)
         HeroCard(d)
         if (d.showOnboard) OnboardCard(d, vm)
+        ChartsCarousel(d)
         if (d.memberCards.size > 1) HouseholdCard(d, vm)
-        AssetsVsLiabilitiesCard(d)
-        if (d.donutSegs.isNotEmpty()) AllocationCard(d)
-        LiquidityCard(d)
-        if (d.hasTrend) TrendCard(d)
         if (d.assetCatRows.isNotEmpty()) {
             CategorySection("Assets", d.totalAssetsCompact, d.assetCatRows, vm)
         }
         if (d.liabCatRows.isNotEmpty()) {
             CategorySection("Liabilities", d.totalLiabCompact, d.liabCatRows, vm)
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            AddButton("＋ Add asset", nwColors.green, Modifier.weight(1f)) { vm.openAdd(Kind.ASSET) }
-            AddButton("＋ Add liability", nwColors.red, Modifier.weight(1f)) { vm.openAdd(Kind.LIABILITY) }
-        }
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(80.dp)) // clears the FAB + bottom nav
     }
 }
 
 @Composable
-private fun AddButton(label: String, accent: Color, modifier: Modifier = Modifier, onClick: () -> Unit) {
+private fun EmptyState(vm: NetworthViewModel) {
+    Column(
+        Modifier.fillMaxSize().padding(32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Box(
+            Modifier.size(72.dp).clip(CircleShape).background(tintFor(nwColors.gold)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text("₹", color = nwColors.gold, fontSize = 34.sp, fontWeight = FontWeight.Bold)
+        }
+        Spacer(Modifier.height(20.dp))
+        Text("Start tracking your net worth", style = NwType.title, color = nwColors.text)
+        Spacer(Modifier.height(8.dp))
+        Text(
+            "Add what you own and what you owe to see your net worth, allocation, and trend over time.",
+            color = nwColors.text3, fontSize = 14.sp,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+        )
+        Spacer(Modifier.height(24.dp))
+        BigButton("＋ Add your first asset", nwColors.green, Color(0xFF0B0B0B)) { vm.openAdd(Kind.ASSET) }
+        Spacer(Modifier.height(10.dp))
+        BigButton("Load sample data", nwColors.inputBg, nwColors.text2, border = nwColors.chipBorder) { vm.loadSample() }
+    }
+}
+
+@Composable
+private fun BigButton(label: String, bg: Color, fg: Color, border: Color? = null, onClick: () -> Unit) {
     Surface(
-        color = nwColors.card,
-        shape = RoundedCornerShape(14.dp),
-        modifier = modifier.border(1.dp, nwColors.cardBorder, RoundedCornerShape(14.dp))
-            .clip(RoundedCornerShape(14.dp)).clickable(onClick = onClick),
+        onClick = onClick,
+        color = bg,
+        contentColor = fg,
+        shape = RoundedCornerShape(50),
+        border = border?.let { androidx.compose.foundation.BorderStroke(1.dp, it) },
+        modifier = Modifier.fillMaxWidth(),
     ) {
         Text(
             label,
-            modifier = Modifier.fillMaxWidth().padding(vertical = 14.dp),
-            color = accent,
-            fontSize = 14.sp,
-            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.padding(vertical = 15.dp),
+            fontSize = 15.sp, fontWeight = FontWeight.SemiBold,
             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
         )
+    }
+}
+
+@Composable
+private fun SampleBanner(vm: NetworthViewModel) {
+    Surface(
+        color = tintFor(nwColors.gold),
+        shape = RoundedCornerShape(12.dp),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Row(
+            Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text("Viewing sample data", color = nwColors.gold, style = NwType.captionStrong, modifier = Modifier.weight(1f))
+            Text(
+                "Start fresh",
+                color = nwColors.gold, style = NwType.captionStrong,
+                modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { vm.clearAll() }.padding(horizontal = 8.dp, vertical = 4.dp),
+            )
+        }
+    }
+}
+
+/** Swipe-through carousel of the chart cards, so they don't stack vertically. */
+@Composable
+private fun ChartsCarousel(d: Derived) {
+    val pages: List<@Composable (Modifier) -> Unit> = buildList {
+        add { m -> AssetsVsLiabilitiesCard(d, m) }
+        if (d.donutSegs.isNotEmpty()) add { m -> AllocationCard(d, m) }
+        add { m -> LiquidityCard(d, m) }
+        if (d.hasTrend) add { m -> TrendCard(d, m) }
+    }
+    val pagerState = rememberPagerState(pageCount = { pages.size })
+    Column {
+        HorizontalPager(
+            state = pagerState,
+            pageSpacing = 12.dp,
+            contentPadding = PaddingValues(end = 34.dp), // peek of the next card
+        ) { page ->
+            pages[page](Modifier.fillMaxWidth().height(300.dp))
+        }
+        Spacer(Modifier.height(10.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
+            repeat(pages.size) { i ->
+                val active = pagerState.currentPage == i
+                Box(
+                    Modifier.padding(horizontal = 3.dp)
+                        .size(if (active) 8.dp else 6.dp)
+                        .clip(CircleShape)
+                        .background(if (active) nwColors.gold else nwColors.track),
+                )
+            }
+        }
     }
 }
 
@@ -94,12 +192,20 @@ private fun HeroCard(d: Derived) {
         Column(Modifier.padding(20.dp)) {
             Text("Total net worth", color = nwColors.text3, fontSize = 13.sp, fontWeight = FontWeight.Medium)
             Spacer(Modifier.height(8.dp))
-            Text(
-                d.nwCompact,
-                color = if (d.nw >= 0) nwColors.gold else nwColors.red,
-                fontSize = 40.sp,
-                fontWeight = FontWeight.Bold,
-            )
+            AnimatedContent(
+                targetState = d.nwCompact,
+                transitionSpec = {
+                    (fadeIn(tween(250)) + slideInVertically { it / 3 }) togetherWith
+                        (fadeOut(tween(200)) + slideOutVertically { -it / 3 })
+                },
+                label = "networth",
+            ) { value ->
+                Text(
+                    value,
+                    color = if (d.nw >= 0) nwColors.gold else nwColors.red,
+                    style = NwType.display,
+                )
+            }
             Spacer(Modifier.height(4.dp))
             Text(d.nwFull, color = nwColors.text2, fontSize = 14.sp)
             if (d.hasDelta) {
@@ -120,9 +226,9 @@ private fun HeroCard(d: Derived) {
 }
 
 @Composable
-private fun AssetsVsLiabilitiesCard(d: Derived) {
-    NwCard {
-        Column(Modifier.padding(20.dp)) {
+private fun AssetsVsLiabilitiesCard(d: Derived, modifier: Modifier = Modifier) {
+    NwCard(modifier) {
+        Column(Modifier.fillMaxHeight().padding(20.dp), verticalArrangement = Arrangement.Center) {
             Text("Assets vs liabilities", color = nwColors.text2, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.height(16.dp))
             BarRow("Assets", d.assetsFull, d.avlAssetFraction, nwColors.green)
@@ -143,14 +249,7 @@ private fun BarRow(label: String, value: String, fraction: Float, color: Color) 
             Text(value, color = nwColors.text, fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold)
         }
         Spacer(Modifier.height(6.dp))
-        Box(
-            Modifier.fillMaxWidth().height(10.dp).clip(RoundedCornerShape(50)).background(nwColors.track),
-        ) {
-            Box(
-                Modifier.fillMaxWidth(fraction.coerceIn(0f, 1f)).height(10.dp)
-                    .clip(RoundedCornerShape(50)).background(color),
-            )
-        }
+        AnimatedBar(fraction = fraction, color = color, track = nwColors.track)
     }
 }
 
@@ -180,10 +279,10 @@ private fun CatRowItem(row: CatRow, onClick: () -> Unit) {
     ) {
         val color = hexToColor(row.colorHex)
         Box(
-            Modifier.size(34.dp).clip(RoundedCornerShape(9.dp)).background(tintFor(color)),
+            Modifier.size(38.dp).clip(RoundedCornerShape(10.dp)).background(tintFor(color)),
             contentAlignment = Alignment.Center,
         ) {
-            Box(Modifier.size(12.dp).clip(CircleShape).background(color))
+            CategoryIcon(row.iconPath, color, Modifier.size(22.dp))
         }
         Spacer(Modifier.size(12.dp))
         Column(Modifier.weight(1f)) {
@@ -242,6 +341,7 @@ private fun OnboardCard(d: Derived, vm: NetworthViewModel) {
 
 @Composable
 private fun HouseholdCard(d: Derived, vm: NetworthViewModel) {
+    val haptic = LocalHapticFeedback.current
     NwCard {
         Column(Modifier.padding(20.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -272,7 +372,10 @@ private fun HouseholdCard(d: Derived, vm: NetworthViewModel) {
                     }
                     Switch(
                         checked = m.included,
-                        onCheckedChange = { vm.toggleMember(m.id) },
+                        onCheckedChange = {
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            vm.toggleMember(m.id)
+                        },
                         colors = SwitchDefaults.colors(
                             checkedThumbColor = Color.White,
                             checkedTrackColor = hexToColor(m.colorHex),
@@ -289,9 +392,9 @@ private fun HouseholdCard(d: Derived, vm: NetworthViewModel) {
 }
 
 @Composable
-private fun AllocationCard(d: Derived) {
-    NwCard {
-        Column(Modifier.padding(20.dp)) {
+private fun AllocationCard(d: Derived, modifier: Modifier = Modifier) {
+    NwCard(modifier) {
+        Column(Modifier.fillMaxHeight().padding(20.dp), verticalArrangement = Arrangement.Center) {
             Text("Asset allocation", color = nwColors.text2, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.height(16.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -321,9 +424,9 @@ private fun AllocationCard(d: Derived) {
 }
 
 @Composable
-private fun LiquidityCard(d: Derived) {
-    NwCard {
-        Column(Modifier.padding(20.dp)) {
+private fun LiquidityCard(d: Derived, modifier: Modifier = Modifier) {
+    NwCard(modifier) {
+        Column(Modifier.fillMaxHeight().padding(20.dp), verticalArrangement = Arrangement.Center) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("Liquid vs locked", color = nwColors.text2, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.weight(1f))
@@ -338,12 +441,7 @@ private fun LiquidityCard(d: Derived) {
                     Text(row.valueCompact, color = nwColors.text, fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold)
                 }
                 Spacer(Modifier.height(6.dp))
-                Box(Modifier.fillMaxWidth().height(10.dp).clip(RoundedCornerShape(50)).background(nwColors.track)) {
-                    Box(
-                        Modifier.fillMaxWidth(row.fraction.coerceIn(0f, 1f)).height(10.dp)
-                            .clip(RoundedCornerShape(50)).background(hexToColor(row.colorHex)),
-                    )
-                }
+                AnimatedBar(fraction = row.fraction, color = hexToColor(row.colorHex), track = nwColors.track)
             }
             Spacer(Modifier.height(14.dp))
             Text(d.emergencyLabel, color = nwColors.text3, fontSize = 12.5.sp)
@@ -352,9 +450,9 @@ private fun LiquidityCard(d: Derived) {
 }
 
 @Composable
-private fun TrendCard(d: Derived) {
-    NwCard {
-        Column(Modifier.padding(20.dp)) {
+private fun TrendCard(d: Derived, modifier: Modifier = Modifier) {
+    NwCard(modifier) {
+        Column(Modifier.fillMaxHeight().padding(20.dp), verticalArrangement = Arrangement.Center) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("Net worth trend", color = nwColors.text2, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.weight(1f))

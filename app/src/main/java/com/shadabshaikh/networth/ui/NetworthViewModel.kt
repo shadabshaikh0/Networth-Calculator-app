@@ -4,6 +4,8 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.shadabshaikh.networth.data.LocalStore
+import com.shadabshaikh.networth.data.auth.Account
+import com.shadabshaikh.networth.data.auth.AuthManager
 import com.shadabshaikh.networth.domain.buildCsv
 import com.shadabshaikh.networth.domain.DeriveInput
 import com.shadabshaikh.networth.domain.Derived
@@ -44,8 +46,14 @@ data class UiState(
     val currentMonth: String = "",
     val editor: EditorTarget? = null,
     val showMembers: Boolean = false,
+    val authStatus: AuthStatus = AuthStatus.SIGNED_OUT,
+    val account: Account? = null,
+    val showAccount: Boolean = false,
+    val untouched: Boolean = false, // showing the auto-seeded sample (no real edits yet)
     val loaded: Boolean = false,
 )
+
+enum class AuthStatus { SIGNED_OUT, SIGNING_IN, SIGNED_IN }
 
 /** Which item editor sheet is open. [item] null = fresh add; an item with a
  *  blank id = add pre-filled into a category; an item with an id = edit. */
@@ -73,11 +81,12 @@ class NetworthViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             val data = store.load()
             val theme = store.loadTheme()
+            val touched = store.isTouched()
             val (members, included) = normalize(data)
             var s = UiState(
                 assets = data.assets, liab = data.liab, members = members, included = included,
                 rates = data.rates, history = data.history, onboardDismissed = data.onboardDismissed,
-                theme = theme, currentMonth = currentMonth(), loaded = true,
+                theme = theme, currentMonth = currentMonth(), untouched = !touched, loaded = true,
             )
             s = s.recordIfNonEmpty()
             _state.value = s
@@ -114,6 +123,53 @@ class NetworthViewModel(app: Application) : AndroidViewModel(app) {
 
     fun openMembers() = setEphemeral { it.copy(showMembers = true) }
     fun closeMembers() = setEphemeral { it.copy(showMembers = false) }
+
+    // ---- Google sign-in (Authorization API) ----
+    val authManager = AuthManager(app)
+
+    /** Start sign-in. The consent PendingIntent (if any) is launched by the UI. */
+    fun beginSignIn(onNeedConsent: (android.app.PendingIntent) -> Unit) {
+        setEphemeral { it.copy(authStatus = AuthStatus.SIGNING_IN) }
+        authManager.authorize(
+            onSuccess = ::onSignedIn,
+            onNeedConsent = onNeedConsent,
+            onError = { setEphemeral { s -> s.copy(authStatus = AuthStatus.SIGNED_OUT) } },
+        )
+    }
+
+    /** Called by the UI with the consent-screen result. */
+    fun completeSignIn(intent: android.content.Intent?) {
+        authManager.handleConsentResult(
+            intent,
+            onSuccess = ::onSignedIn,
+            onError = { setEphemeral { s -> s.copy(authStatus = AuthStatus.SIGNED_OUT) } },
+        )
+    }
+
+    /** The user backed out of / cancelled the Google consent screen. */
+    fun cancelSignIn() = setEphemeral {
+        if (it.authStatus == AuthStatus.SIGNING_IN) it.copy(authStatus = AuthStatus.SIGNED_OUT) else it
+    }
+
+    private fun onSignedIn(token: String, account: Account?) {
+        // Flip to signed-in immediately, with whatever identity the grant gave us.
+        setEphemeral { it.copy(authStatus = AuthStatus.SIGNED_IN, account = account) }
+        // If the grant didn't carry email/name, fall back to the userinfo endpoint.
+        if (account?.email == null) {
+            viewModelScope.launch {
+                val fetched = authManager.fetchUserInfo(token)
+                if (fetched != null) setEphemeral { it.copy(account = fetched) }
+            }
+        }
+    }
+
+    fun signOut() {
+        authManager.signOut()
+        setEphemeral { it.copy(authStatus = AuthStatus.SIGNED_OUT, account = null, showAccount = false) }
+    }
+
+    fun openAccount() = setEphemeral { it.copy(showAccount = true) }
+    fun closeAccount() = setEphemeral { it.copy(showAccount = false) }
 
     // ---- data mutations (persisted, mark touched, re-record history) ----
     fun toggleMember(id: String) = update { s ->
@@ -180,7 +236,7 @@ class NetworthViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun update(transform: (UiState) -> UiState) {
-        val next = transform(_state.value).recordIfNonEmpty()
+        val next = transform(_state.value).recordIfNonEmpty().copy(untouched = false)
         _state.value = next
         viewModelScope.launch {
             store.markTouched()

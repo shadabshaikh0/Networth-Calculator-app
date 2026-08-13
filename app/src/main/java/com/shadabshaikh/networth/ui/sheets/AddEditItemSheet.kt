@@ -1,16 +1,23 @@
 package com.shadabshaikh.networth.ui.sheets
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -28,6 +35,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -44,6 +52,7 @@ import com.shadabshaikh.networth.ui.UiState
 import com.shadabshaikh.networth.ui.components.SelectChip
 import com.shadabshaikh.networth.ui.theme.hexToColor
 import com.shadabshaikh.networth.ui.theme.nwColors
+import com.shadabshaikh.networth.ui.theme.tintFor
 import kotlin.math.roundToLong
 
 private data class Draft(
@@ -101,7 +110,11 @@ fun AddEditItemSheet(state: UiState, vm: NetworthViewModel) {
         containerColor = nwColors.card,
     ) {
         Column(
-            Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 20.dp).padding(bottom = 16.dp),
+            Modifier.fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .navigationBarsPadding()
+                .imePadding()
+                .padding(horizontal = 20.dp, vertical = 16.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             Text(
@@ -178,44 +191,48 @@ fun AddEditItemSheet(state: UiState, vm: NetworthViewModel) {
             Field("Reference / link (optional)", draft.ref, "") { draft = draft.copy(ref = it) }
 
             Spacer(Modifier.height(4.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            val accent = if (isAsset) nwColors.green else nwColors.red
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 if (isEdit) {
-                    TextButton(onClick = {
-                        vm.deleteItem(kind, target.item!!.id)
-                        vm.closeEditor()
-                    }) { Text("Delete", color = nwColors.red) }
-                }
-                Spacer(Modifier.weight(1f))
-                Surface(
-                    color = if (canSave) nwColors.ctaBg else nwColors.inputBg,
-                    contentColor = if (canSave) nwColors.ctaTx else nwColors.text3,
-                    shape = RoundedCornerShape(50),
-                    modifier = Modifier.height(48.dp),
-                ) {
-                    Text(
-                        if (isEdit) "Save changes" else if (isAsset) "Add asset" else "Add liability",
-                        modifier = Modifier
-                            .clickableIf(canSave) {
-                                val name = draft.name.trim().ifBlank {
-                                    if (byWeight) "$grams g ${draft.metal.key}" else cats.first { it.key == draft.cat }.label
-                                }
-                                vm.upsertItem(
-                                    kind,
-                                    Item(
-                                        id = target.item?.id ?: "",
-                                        name = name, cat = draft.cat, value = value, owner = draft.owner,
-                                        note = draft.note.trim().ifBlank { null },
-                                        ref = draft.ref.trim().ifBlank { null },
-                                        grams = if (byWeight) grams else null,
-                                        metal = if (byWeight) draft.metal else null,
-                                    ),
-                                )
-                                vm.closeEditor()
-                            }
-                            .padding(horizontal = 24.dp, vertical = 13.dp),
-                        fontSize = 15.sp, fontWeight = FontWeight.SemiBold,
+                    PillButton(
+                        label = "Delete",
+                        bg = tintFor(nwColors.red),
+                        fg = nwColors.red,
+                        onClick = { vm.deleteItem(kind, target.item!!.id); vm.closeEditor() },
                     )
                 }
+                Spacer(Modifier.weight(1f))
+                PillButton(
+                    label = "Cancel",
+                    bg = nwColors.inputBg,
+                    fg = nwColors.text2,
+                    border = nwColors.chipBorder,
+                    onClick = vm::closeEditor,
+                )
+                Spacer(Modifier.width(10.dp))
+                PillButton(
+                    label = if (isEdit) "Save changes" else if (isAsset) "Add asset" else "Add liability",
+                    bg = if (canSave) accent else nwColors.inputBg,
+                    fg = if (canSave) Color(0xFF0B0B0B) else nwColors.text3,
+                    enabled = canSave,
+                    onClick = {
+                        val name = draft.name.trim().ifBlank {
+                            if (byWeight) "$grams g ${draft.metal.key}" else cats.first { it.key == draft.cat }.label
+                        }
+                        vm.upsertItem(
+                            kind,
+                            Item(
+                                id = target.item?.id ?: "",
+                                name = name, cat = draft.cat, value = value, owner = draft.owner,
+                                note = draft.note.trim().ifBlank { null },
+                                ref = draft.ref.trim().ifBlank { null },
+                                grams = if (byWeight) grams else null,
+                                metal = if (byWeight) draft.metal else null,
+                            ),
+                        )
+                        vm.closeEditor()
+                    },
+                )
             }
         }
     }
@@ -257,5 +274,26 @@ private fun Field(
     )
 }
 
-private fun Modifier.clickableIf(enabled: Boolean, onClick: () -> Unit): Modifier =
-    if (enabled) this.clickable(onClick = onClick) else this
+@Composable
+private fun PillButton(
+    label: String,
+    bg: Color,
+    fg: Color,
+    border: Color? = null,
+    enabled: Boolean = true,
+    onClick: () -> Unit,
+) {
+    Surface(
+        onClick = onClick,
+        enabled = enabled,
+        color = bg,
+        contentColor = fg,
+        shape = RoundedCornerShape(50),
+        border = border?.let { BorderStroke(1.dp, it) },
+        modifier = Modifier.height(48.dp),
+    ) {
+        Box(Modifier.fillMaxHeight().padding(horizontal = 24.dp), contentAlignment = Alignment.Center) {
+            Text(label, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+        }
+    }
+}
