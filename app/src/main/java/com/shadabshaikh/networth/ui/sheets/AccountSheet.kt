@@ -16,6 +16,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Logout
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -32,6 +33,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.shadabshaikh.networth.ui.NetworthViewModel
+import com.shadabshaikh.networth.ui.SyncStatus
 import com.shadabshaikh.networth.ui.UiState
 import com.shadabshaikh.networth.ui.theme.NwType
 import com.shadabshaikh.networth.ui.theme.nwColors
@@ -70,16 +72,26 @@ fun AccountSheet(state: UiState, vm: NetworthViewModel) {
                 }
             }
 
+            val (dotColor, title, subtitle) = when (state.syncStatus) {
+                SyncStatus.SYNCING -> Triple(nwColors.gold, "Syncing…", "Saving to Google Drive")
+                SyncStatus.SYNCED -> Triple(nwColors.green, "Synced", "Backed up to your Google Drive sheet")
+                SyncStatus.ERROR -> Triple(nwColors.red, "Sync error", state.syncError ?: "Couldn't reach Google Drive")
+                SyncStatus.IDLE -> Triple(nwColors.green, "Connected with Google", "Drive access for sheet sync")
+            }
             Surface(color = nwColors.inputBg, shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth()) {
                 Row(
                     Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Box(Modifier.size(8.dp).clip(CircleShape).background(nwColors.green))
+                    if (state.syncStatus == SyncStatus.SYNCING) {
+                        CircularProgressIndicator(color = dotColor, strokeWidth = 2.dp, modifier = Modifier.size(12.dp))
+                    } else {
+                        Box(Modifier.size(8.dp).clip(CircleShape).background(dotColor))
+                    }
                     Spacer(Modifier.size(10.dp))
                     Column(Modifier.weight(1f)) {
-                        Text("Connected with Google", color = nwColors.text, style = NwType.captionStrong)
-                        Text("Drive access for sheet sync", color = nwColors.text3, fontSize = 11.5.sp)
+                        Text(title, color = nwColors.text, style = NwType.captionStrong)
+                        Text(subtitle, color = nwColors.text3, fontSize = 11.5.sp)
                     }
                 }
             }

@@ -51,6 +51,13 @@ class LocalStore(context: Context) {
         store.edit { it[TOUCHED] = true }
     }
 
+    /** Cached spreadsheet id, so we can skip findSheet on later launches. */
+    suspend fun loadSheetId(): String? = store.data.first()[SHEET_ID]
+
+    suspend fun saveSheetId(id: String?) {
+        store.edit { if (id == null) it.remove(SHEET_ID) else it[SHEET_ID] = id }
+    }
+
     private fun seeded(): SnapshotData = SnapshotData(
         assets = SEED_ASSETS,
         liab = SEED_LIAB,
@@ -62,5 +69,6 @@ class LocalStore(context: Context) {
         val SNAPSHOT = stringPreferencesKey("snapshot")
         val THEME = stringPreferencesKey("theme")
         val TOUCHED = booleanPreferencesKey("touched")
+        val SHEET_ID = stringPreferencesKey("sheetId")
     }
 }

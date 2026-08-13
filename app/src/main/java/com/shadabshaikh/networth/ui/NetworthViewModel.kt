@@ -4,8 +4,11 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.shadabshaikh.networth.data.LocalStore
+import com.shadabshaikh.networth.data.DEFAULT_MEMBERS
 import com.shadabshaikh.networth.data.auth.Account
 import com.shadabshaikh.networth.data.auth.AuthManager
+import com.shadabshaikh.networth.data.sync.SheetsApi
+import com.shadabshaikh.networth.data.sync.SheetsRepository
 import com.shadabshaikh.networth.domain.buildCsv
 import com.shadabshaikh.networth.domain.DeriveInput
 import com.shadabshaikh.networth.domain.Derived
@@ -25,6 +28,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -49,11 +54,14 @@ data class UiState(
     val authStatus: AuthStatus = AuthStatus.SIGNED_OUT,
     val account: Account? = null,
     val showAccount: Boolean = false,
+    val syncStatus: SyncStatus = SyncStatus.IDLE,
+    val syncError: String? = null,
     val untouched: Boolean = false, // showing the auto-seeded sample (no real edits yet)
     val loaded: Boolean = false,
 )
 
 enum class AuthStatus { SIGNED_OUT, SIGNING_IN, SIGNED_IN }
+enum class SyncStatus { IDLE, SYNCING, SYNCED, ERROR }
 
 /** Which item editor sheet is open. [item] null = fresh add; an item with a
  *  blank id = add pre-filled into a category; an item with an id = edit. */
@@ -68,6 +76,9 @@ private fun UiState.toDeriveInput() =
 class NetworthViewModel(app: Application) : AndroidViewModel(app) {
 
     private val store = LocalStore(app)
+
+    val authManager = AuthManager(app)
+    private val sheets = SheetsRepository(SheetsApi(authManager))
 
     private val _state = MutableStateFlow(UiState())
     val state: StateFlow<UiState> = _state.asStateFlow()
@@ -125,7 +136,6 @@ class NetworthViewModel(app: Application) : AndroidViewModel(app) {
     fun closeMembers() = setEphemeral { it.copy(showMembers = false) }
 
     // ---- Google sign-in (Authorization API) ----
-    val authManager = AuthManager(app)
 
     /** Start sign-in. The consent PendingIntent (if any) is launched by the UI. */
     fun beginSignIn(onNeedConsent: (android.app.PendingIntent) -> Unit) {
@@ -161,11 +171,92 @@ class NetworthViewModel(app: Application) : AndroidViewModel(app) {
                 if (fetched != null) setEphemeral { it.copy(account = fetched) }
             }
         }
+        reconcile() // find/create the sheet and sync
     }
 
     fun signOut() {
         authManager.signOut()
-        setEphemeral { it.copy(authStatus = AuthStatus.SIGNED_OUT, account = null, showAccount = false) }
+        pushJob?.cancel()
+        viewModelScope.launch { store.saveSheetId(null) }
+        setEphemeral {
+            it.copy(
+                authStatus = AuthStatus.SIGNED_OUT, account = null, showAccount = false,
+                syncStatus = SyncStatus.IDLE, syncError = null,
+            )
+        }
+    }
+
+    // ---- sheet sync (ports lib/sync.ts) ----
+
+    private var pushJob: Job? = null
+    private var pushing = false
+    private var pushQueued = false
+
+    private fun setSyncStatus(status: SyncStatus, error: String? = null) =
+        setEphemeral { it.copy(syncStatus = status, syncError = error) }
+
+    /** On sign-in: find or create the sheet and reconcile. Sheet wins if it
+     *  exists; otherwise push local (unless it's the untouched demo seed). */
+    private fun reconcile() {
+        viewModelScope.launch {
+            setSyncStatus(SyncStatus.SYNCING)
+            try {
+                var id = store.loadSheetId() ?: sheets.findSheet()
+                if (id != null) {
+                    hydrate(sheets.loadAll(id))
+                } else {
+                    id = sheets.createSheet()
+                    if (!store.isTouched()) {
+                        // Untouched demo seed — start the user's sheet clean.
+                        hydrate(SnapshotData(members = listOf(DEFAULT_MEMBERS[0]), included = mapOf("self" to true)))
+                    }
+                    sheets.saveAll(id, _state.value.toSnapshotData())
+                }
+                store.saveSheetId(id)
+                setSyncStatus(SyncStatus.SYNCED)
+            } catch (e: Exception) {
+                setSyncStatus(SyncStatus.ERROR, e.message)
+            }
+        }
+    }
+
+    /** Replace local state from a loaded sheet, and persist it locally. */
+    private fun hydrate(data: SnapshotData) {
+        val (members, included) = normalize(data)
+        var s = _state.value.copy(
+            assets = data.assets, liab = data.liab, members = members, included = included,
+            rates = data.rates, history = data.history, onboardDismissed = data.onboardDismissed,
+            untouched = false, loaded = true,
+        )
+        s = s.recordIfNonEmpty()
+        _state.value = s
+        viewModelScope.launch { store.markTouched(); store.save(s.toSnapshotData()) }
+    }
+
+    /** Debounced (~1s) push after any local change while signed in. */
+    private fun schedulePush() {
+        if (_state.value.authStatus != AuthStatus.SIGNED_IN) return
+        pushJob?.cancel()
+        pushJob = viewModelScope.launch {
+            delay(1000)
+            pushNow()
+        }
+    }
+
+    private suspend fun pushNow() {
+        val id = store.loadSheetId() ?: return
+        if (pushing) { pushQueued = true; return }
+        pushing = true
+        setSyncStatus(SyncStatus.SYNCING)
+        try {
+            sheets.saveAll(id, _state.value.toSnapshotData())
+            setSyncStatus(SyncStatus.SYNCED)
+        } catch (e: Exception) {
+            setSyncStatus(SyncStatus.ERROR, e.message)
+        } finally {
+            pushing = false
+            if (pushQueued) { pushQueued = false; pushNow() }
+        }
     }
 
     fun openAccount() = setEphemeral { it.copy(showAccount = true) }
@@ -242,6 +333,7 @@ class NetworthViewModel(app: Application) : AndroidViewModel(app) {
             store.markTouched()
             store.save(next.toSnapshotData())
         }
+        schedulePush() // debounced cloud push when signed in
     }
 
     /** Upsert this month's net-worth snapshot, unless there's nothing to track. */

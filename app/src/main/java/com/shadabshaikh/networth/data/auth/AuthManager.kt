@@ -8,7 +8,10 @@ import com.google.android.gms.auth.api.identity.AuthorizationResult
 import com.google.android.gms.auth.api.identity.Identity
 import com.google.android.gms.common.api.Scope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
@@ -18,6 +21,9 @@ import java.net.URL
 
 /** The signed-in account shown in the chip. */
 data class Account(val email: String?, val name: String?)
+
+/** Thrown when a token can't be obtained silently and interactive sign-in is needed. */
+class NeedsSignIn : Exception("Interactive sign-in required")
 
 /**
  * Obtains an OAuth access token scoped to `drive.file` via the Google
@@ -46,6 +52,20 @@ class AuthManager(context: Context) {
 
     /** A cached, non-expired token, or null. */
     fun currentToken(): String? = accessToken?.takeIf { System.currentTimeMillis() < tokenExpiry }
+
+    /** Suspend accessor for the REST layer: cached token, or a silent
+     *  re-authorization (works when a grant already exists). Throws
+     *  [NeedsSignIn] if interactive consent would be required. */
+    suspend fun getValidToken(): String {
+        currentToken()?.let { return it }
+        return suspendCancellableCoroutine { cont ->
+            authorize(
+                onSuccess = { token, _ -> if (cont.isActive) cont.resume(token) },
+                onNeedConsent = { if (cont.isActive) cont.resumeWithException(NeedsSignIn()) },
+                onError = { if (cont.isActive) cont.resumeWithException(it) },
+            )
+        }
+    }
 
     /**
      * Ask for authorization. If the grant already exists, [onToken] fires with a
@@ -132,6 +152,12 @@ class AuthManager(context: Context) {
         val body = conn.inputStream.bufferedReader().use { it.readText() }
         json.parseToJsonElement(body).jsonObject
     }.getOrNull()
+
+    /** Drop the cached token so the next [getValidToken] fetches a fresh one. */
+    fun invalidateToken() {
+        accessToken = null
+        tokenExpiry = 0L
+    }
 
     fun signOut() {
         accessToken = null
