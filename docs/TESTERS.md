@@ -26,6 +26,11 @@ app to track your assets, liabilities, and net worth (in ₹).
 - **(Optional) Google sync** — tap the **Account** tab → **Sign in**. Your data
   syncs to a private "Net worth data" sheet in your own Google Drive. Sign-in is
   completely optional; the app works fully offline without it.
+  - Use the **same Google account you shared with me** (it has to be on the
+    approved tester list to sign in while the app is in testing).
+  - You may see a **"Google hasn't verified this app"** screen — that's normal
+    for an app still in testing. Tap **Advanced → Continue** (it's my app, and it
+    only ever touches the one spreadsheet it creates).
 
 ## What to look for
 - Anything that **crashes, freezes, or looks wrong**
