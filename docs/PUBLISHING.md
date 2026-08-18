@@ -117,19 +117,28 @@ release**:
 ---
 
 ## 7. ⚠️ Wire up Google sign-in for the released build (critical)
-The Play-signed build uses a **different signature** than your local debug/upload
-key, so you must register its SHA-1 or sign-in fails with `DEVELOPER_ERROR`.
+Google identifies the app by **package + signing SHA-1**. With **Play App
+Signing**, Google re-signs your app before distributing it, so the copy users
+install has a **different SHA-1** than your upload key. Register the missing
+SHA-1s or sign-in fails with `DEVELOPER_ERROR (10)`.
 
-1. Play Console → **Test and release → Setup → App integrity → App signing** →
-   copy **both** SHA-1 fingerprints:
-   - **App signing key certificate** SHA-1
-   - **Upload key certificate** SHA-1
-2. Google Cloud Console → **APIs & Services → Credentials** → open your **Android
-   OAuth client** (package `com.shadabshaikh.networth`) → **add both** SHA-1
-   fingerprints → Save.
+1. **Get the SHA-1s** (only appear after you've uploaded an `.aab`):
+   Play Console → **Test and release → Setup → App integrity → App signing** →
+   copy the SHA-1 of **both**:
+   - **App signing key certificate** (what users install — required)
+   - **Upload key certificate** (for directly-installed test builds)
+2. **Register them in Google Cloud** → **APIs & Services → Credentials**.
+   An Android OAuth client holds **exactly one** package + SHA-1, so create a
+   **separate** Android OAuth client **per** SHA-1 (all with the same package
+   `com.shadabshaikh.networth`):
+   - **+ Create Credentials → OAuth client ID → Android** → package
+     `com.shadabshaikh.networth` → paste the **App signing key** SHA-1 → Create.
+   - Repeat for the **Upload key** SHA-1.
 
-> You can keep your existing debug SHA-1 there too — multiple fingerprints are
-> allowed on one Android OAuth client.
+> Keep your existing **debug** Android OAuth client too. You'll end up with 3
+> Android clients (debug / upload / Play app signing) — same package, different
+> SHA-1. That's correct; Google matches the installed app to any of them.
+> Changes take a few minutes to propagate.
 
 ---
 
