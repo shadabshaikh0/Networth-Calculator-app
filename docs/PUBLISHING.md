@@ -122,9 +122,13 @@ Signing**, Google re-signs your app before distributing it, so the copy users
 install has a **different SHA-1** than your upload key. Register the missing
 SHA-1s or sign-in fails with `DEVELOPER_ERROR (10)`.
 
-1. **Get the SHA-1s** (only appear after you've uploaded an `.aab`):
-   Play Console → **Test and release → Setup → App integrity → App signing** →
-   copy the SHA-1 of **both**:
+1. **Get the SHA-1s** (only appear after you've uploaded an `.aab`).
+   In the current (2026) Play Console the signing tools moved under
+   **Protected with Play**: go to
+   **Protected with Play → Play Store distribution → Go to Play app signing**
+   (this replaced the old *Test and release → Setup → App integrity* path — if
+   the menu differs, just search "Play app signing" in the Console search bar).
+   Copy the **SHA-1 certificate fingerprint** of **both**:
    - **App signing key certificate** (what users install — required)
    - **Upload key certificate** (for directly-installed test builds)
 2. **Register them in Google Cloud** → **APIs & Services → Credentials**.
