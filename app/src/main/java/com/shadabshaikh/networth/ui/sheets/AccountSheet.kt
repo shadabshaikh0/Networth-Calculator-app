@@ -18,6 +18,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Logout
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -25,8 +26,13 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -48,6 +54,7 @@ fun AccountSheet(state: UiState, vm: NetworthViewModel) {
     val name = account?.name?.takeIf { it.isNotBlank() } ?: account?.email?.substringBefore("@") ?: "Account"
     val initial = name.firstOrNull()?.uppercaseChar()?.toString() ?: "?"
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    var showSignOutConfirm by remember { mutableStateOf(false) }
 
     ModalBottomSheet(
         onDismissRequest = vm::closeAccount,
@@ -105,7 +112,7 @@ fun AccountSheet(state: UiState, vm: NetworthViewModel) {
             HorizontalDivider(color = nwColors.hair)
 
             Surface(
-                onClick = { vm.signOut() },
+                onClick = { showSignOutConfirm = true },
                 color = tint(nwColors.red),
                 contentColor = nwColors.red,
                 shape = RoundedCornerShape(50),
@@ -121,6 +128,32 @@ fun AccountSheet(state: UiState, vm: NetworthViewModel) {
                     Text("Sign out", fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
                 }
             }
+        }
+
+        if (showSignOutConfirm) {
+            AlertDialog(
+                onDismissRequest = { showSignOutConfirm = false },
+                containerColor = nwColors.card,
+                titleContentColor = nwColors.text,
+                textContentColor = nwColors.text3,
+                title = { Text("Sign out?") },
+                text = {
+                    Text("Are you sure you want to sign out? Your data stays saved on this device; sign in again anytime to resume Google Drive sync.")
+                },
+                confirmButton = {
+                    TextButton(onClick = {
+                        showSignOutConfirm = false
+                        vm.signOut()
+                    }) {
+                        Text("Sign out", color = nwColors.red, fontWeight = FontWeight.SemiBold)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showSignOutConfirm = false }) {
+                        Text("Cancel", color = nwColors.text)
+                    }
+                },
+            )
         }
     }
 }
