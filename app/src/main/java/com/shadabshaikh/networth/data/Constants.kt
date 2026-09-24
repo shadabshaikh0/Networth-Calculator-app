@@ -11,7 +11,8 @@ import com.shadabshaikh.networth.model.Member
  */
 
 val ASSET_CATS: List<CategoryDef> = listOf(
-    CategoryDef("bonds", "Bonds & fixed income", "#D5B475", "M5 4h13v16l-3-2-3 2-3-2-1 1zM8 8h7M8 12h5"),
+    CategoryDef("bonds", "Bonds", "#D5B475", "M5 4h13v16l-3-2-3 2-3-2-1 1zM8 8h7M8 12h5"),
+    CategoryDef("fixed_deposits", "Fixed deposits", "#2DB7A3", "M4 6h16v14H4zM4 10h16M8 4v4M16 4v4"),
     CategoryDef("stocks", "Stocks & mutual funds", "#417CF1", "M4 16l4-5 3 3 5-8 4 5M4 20h16"),
     CategoryDef("cash", "Cash & bank", "#19AA4D", "M3 8h18v10H3zM3 8l2-3h14l2 3M15 13h3"),
     CategoryDef("epf", "EPF / PPF / retirement", "#6FCAFF", "M12 3l7 3v5c0 4-3 7-7 8-4-1-7-4-7-8V6z"),
@@ -44,7 +45,7 @@ val RELATIONS: List<String> =
 
 /** Asset categories reachable quickly in an emergency (everything else is "locked":
  *  epf, realestate, vehicles, other_a). */
-val LIQUID_CATS: Set<String> = setOf("cash", "stocks", "gold", "bonds")
+val LIQUID_CATS: Set<String> = setOf("cash", "stocks", "gold", "bonds", "fixed_deposits")
 
 /** ₹ per gram (indicative defaults). */
 val DEFAULT_RATES: Map<String, Long> = mapOf("gold" to 7250L, "silver" to 92L)
